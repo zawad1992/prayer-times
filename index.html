@@ -14,6 +14,12 @@
                 <h1 class="card-title h3 mb-4">Prayer Times Calculator</h1>
                 
                 <div class="bg-light p-3 rounded mb-4">
+                    <!-- Date Selection -->
+                    <div class="form-group">
+                        <label for="date">Date:</label>
+                        <input type="date" id="date" class="form-control" />
+                    </div>
+
                     <div class="form-group">
                         <label for="madhab">Madhab:</label>
                         <select id="madhab" class="form-control">
@@ -25,9 +31,18 @@
                     <div class="form-group">
                         <label for="ishaMethod">Isha End Time Calculation:</label>
                         <select id="ishaMethod" class="form-control">
-                            <option value="standard">Last Third of Night</option>
+                            <option value="lastThird">Last Third of Night</option>
                             <option value="midnight">Arabic Midnight</option>
+                            <option value="fixed90">90 Minutes After Maghrib</option>
+                            <option value="fixed120">2 Hours After Maghrib</option>
+                            <option value="custom">Custom Minutes After Maghrib</option>
                         </select>
+                    </div>
+
+                    <!-- Custom minutes input for Isha -->
+                    <div id="customIshaMinutes" class="form-group" style="display: none;">
+                        <label for="ishaCustomMinutes">Minutes After Maghrib:</label>
+                        <input type="number" id="ishaCustomMinutes" class="form-control" value="90" min="30" max="180" />
                     </div>
 
                     <div class="form-group">
@@ -40,6 +55,37 @@
                             <option value="Tehran">Institute of Geophysics, University of Tehran</option>
                             <option value="Dubai">Gulf Region</option>
                         </select>
+                    </div>
+
+                    <!-- Time Adjustments -->
+                    <div class="form-group">
+                        <label>Time Adjustments (minutes)</label>
+                        <div class="row">
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustFajr" class="small">Fajr</label>
+                                <input type="number" id="adjustFajr" class="form-control" value="0" />
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustSunrise" class="small">Sunrise</label>
+                                <input type="number" id="adjustSunrise" class="form-control" value="0" />
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustDhuhr" class="small">Dhuhr</label>
+                                <input type="number" id="adjustDhuhr" class="form-control" value="0" />
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustAsr" class="small">Asr</label>
+                                <input type="number" id="adjustAsr" class="form-control" value="0" />
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustMaghrib" class="small">Maghrib</label>
+                                <input type="number" id="adjustMaghrib" class="form-control" value="0" />
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <label for="adjustIsha" class="small">Isha</label>
+                                <input type="number" id="adjustIsha" class="form-control" value="0" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -65,6 +111,9 @@
             longitude: 0
         };
 
+        // Set default date to today
+        document.getElementById('date').valueAsDate = new Date();
+
         function getLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -86,7 +135,7 @@
 
         function calculatePrayerTimes() {
             const coordinates = new adhan.Coordinates(userLocation.latitude, userLocation.longitude);
-            const date = new Date();
+            const date = new Date(document.getElementById('date').value);
             
             // Get selected calculation method
             const calculationMethod = document.getElementById('calculation').value;
@@ -96,32 +145,85 @@
             const selectedMadhab = document.getElementById('madhab').value;
             params.madhab = selectedMadhab === 'hanafi' ? adhan.Madhab.Hanafi : adhan.Madhab.Shafi;
 
+            // Add time adjustments
+            params.adjustments = {
+                fajr: parseInt(document.getElementById('adjustFajr').value) || 0,
+                sunrise: parseInt(document.getElementById('adjustSunrise').value) || 0,
+                dhuhr: parseInt(document.getElementById('adjustDhuhr').value) || 0,
+                asr: parseInt(document.getElementById('adjustAsr').value) || 0,
+                maghrib: parseInt(document.getElementById('adjustMaghrib').value) || 0,
+                isha: parseInt(document.getElementById('adjustIsha').value) || 0
+            };
+
             const prayerTimes = new adhan.PrayerTimes(coordinates, date, params);
             const sunnahTimes = new adhan.SunnahTimes(prayerTimes);
             
-            // Format times
+            // Calculate end times (next prayer start time)
+            const tomorrowDate = new Date(date);
+            tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+            const tomorrowPrayerTimes = new adhan.PrayerTimes(coordinates, tomorrowDate, params);
+
+            // Format times with start and end
             const times = {
-                'Fajr': formatTime(prayerTimes.fajr),
-                'Sunrise': formatTime(prayerTimes.sunrise),
-                'Dhuhr': formatTime(prayerTimes.dhuhr),
-                'Asr': formatTime(prayerTimes.asr),
-                'Maghrib': formatTime(prayerTimes.maghrib),
-                'Isha': formatTime(prayerTimes.isha)
+                'Fajr': {
+                    start: formatTime(prayerTimes.fajr),
+                    end: formatTime(prayerTimes.sunrise)
+                },
+                'Sunrise': {
+                    start: formatTime(prayerTimes.sunrise),
+                    end: formatTime(prayerTimes.dhuhr)
+                },
+                'Dhuhr': {
+                    start: formatTime(prayerTimes.dhuhr),
+                    end: formatTime(prayerTimes.asr)
+                },
+                'Asr': {
+                    start: formatTime(prayerTimes.asr),
+                    end: formatTime(prayerTimes.maghrib)
+                },
+                'Maghrib': {
+                    start: formatTime(prayerTimes.maghrib),
+                    end: formatTime(prayerTimes.isha)
+                }
             };
 
-            // Add Isha end time based on selection
+            // Calculate Isha end time based on selection
             const ishaMethod = document.getElementById('ishaMethod').value;
-            if (ishaMethod === 'midnight') {
-                times['Isha End (Midnight)'] = formatTime(sunnahTimes.middleOfTheNight);
-            } else {
-                times['Isha End (Last Third)'] = formatTime(sunnahTimes.lastThirdOfTheNight);
+            let ishaEndTime;
+            
+            switch(ishaMethod) {
+                case 'lastThird':
+                    ishaEndTime = sunnahTimes.lastThirdOfTheNight;
+                    break;
+                case 'midnight':
+                    ishaEndTime = sunnahTimes.middleOfTheNight;
+                    break;
+                case 'fixed90':
+                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + 90 * 60000);
+                    break;
+                case 'fixed120':
+                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + 120 * 60000);
+                    break;
+                case 'custom':
+                    const customMinutes = parseInt(document.getElementById('ishaCustomMinutes').value) || 90;
+                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + customMinutes * 60000);
+                    break;
             }
+
+            times['Isha'] = {
+                start: formatTime(prayerTimes.isha),
+                end: formatTime(ishaEndTime)
+            };
 
             displayPrayerTimes(times, prayerTimes.currentPrayer());
         }
 
         function formatTime(date) {
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            });
         }
 
         function displayPrayerTimes(times, currentPrayer) {
@@ -130,22 +232,47 @@
                 <h2 class="h4 mb-3">Prayer Times</h2>
                 <div class="list-group">
                     ${Object.entries(times).map(([prayer, time]) => `
-                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center
+                        <div class="list-group-item list-group-item-action
                             ${prayer.toLowerCase() === currentPrayer.toLowerCase() ? 'list-group-item-success' : ''}">
-                            <span>${prayer}</span>
-                            <span class="badge badge-primary badge-pill">${time}</span>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold">${prayer}</span>
+                                <div class="text-right">
+                                    <div>
+                                        <span class="badge badge-primary badge-pill">Start: ${time.start}</span>
+                                    </div>
+                                    <div class="mt-1">
+                                        <span class="badge badge-secondary badge-pill">End: ${time.end}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
             `;
         }
 
+        // Show/hide custom minutes input based on selection
+        document.getElementById('ishaMethod').addEventListener('change', function(e) {
+            const customDiv = document.getElementById('customIshaMinutes');
+            customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
+        });
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            // Add event listeners for settings changes
-            document.getElementById('madhab').addEventListener('change', calculatePrayerTimes);
-            document.getElementById('ishaMethod').addEventListener('change', calculatePrayerTimes);
-            document.getElementById('calculation').addEventListener('change', calculatePrayerTimes);
+            // Add event listeners for all inputs
+            const inputs = [
+                'madhab', 'ishaMethod', 'calculation', 'date',
+                'adjustFajr', 'adjustSunrise', 'adjustDhuhr',
+                'adjustAsr', 'adjustMaghrib', 'adjustIsha',
+                'ishaCustomMinutes'
+            ];
+            
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', calculatePrayerTimes);
+                }
+            });
             
             // Initialize with user's location
             getLocation();
