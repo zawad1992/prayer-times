@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prayer Times Calculator</title>
+    <!-- Bootstrap 4 CSS -->
+    <link href="assets/bootstrap-4.6.2-dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="card-title h3 mb-4">Prayer Times Calculator</h1>
+                
+                <div class="bg-light p-3 rounded mb-4">
+                    <div class="form-group">
+                        <label for="madhab">Madhab:</label>
+                        <select id="madhab" class="form-control">
+                            <option value="shafi">Shafi</option>
+                            <option value="hanafi">Hanafi</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ishaMethod">Isha End Time Calculation:</label>
+                        <select id="ishaMethod" class="form-control">
+                            <option value="standard">Last Third of Night</option>
+                            <option value="midnight">Arabic Midnight</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="calculation">Calculation Method:</label>
+                        <select id="calculation" class="form-control">
+                            <option value="MuslimWorldLeague">Muslim World League</option>
+                            <option value="NorthAmerica">ISNA</option>
+                            <option value="Egyptian">Egyptian General Authority</option>
+                            <option value="Karachi">University of Islamic Sciences, Karachi</option>
+                            <option value="Tehran">Institute of Geophysics, University of Tehran</option>
+                            <option value="Dubai">Gulf Region</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="getLocation()" class="btn btn-success btn-block mb-3">
+                    Get Prayer Times for My Location
+                </button>
+                
+                <div id="coordinates" class="text-muted small mb-3"></div>
+                <div id="prayerTimes"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Required JavaScript -->
+    <script src="assets/js/jquery.slim.min.js"></script>
+    <script src="assets/js/popper.min.js"></script>
+    <script src="assets/bootstrap-4.6.2-dist/js/bootstrap.min.js"></script>
+    <script src="assets/adhan-v4.4.3/lib/bundles/adhan.umd.min.js"></script>
+
+    <script>
+        let userLocation = {
+            latitude: 0,
+            longitude: 0
+        };
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        userLocation.latitude = position.coords.latitude;
+                        userLocation.longitude = position.coords.longitude;
+                        document.getElementById('coordinates').innerHTML = 
+                            `Location: ${userLocation.latitude.toFixed(4)}°, ${userLocation.longitude.toFixed(4)}°`;
+                        calculatePrayerTimes();
+                    },
+                    error => {
+                        alert('Unable to retrieve your location');
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser');
+            }
+        }
+
+        function calculatePrayerTimes() {
+            const coordinates = new adhan.Coordinates(userLocation.latitude, userLocation.longitude);
+            const date = new Date();
+            
+            // Get selected calculation method
+            const calculationMethod = document.getElementById('calculation').value;
+            const params = adhan.CalculationMethod[calculationMethod]();
+            
+            // Set madhab
+            const selectedMadhab = document.getElementById('madhab').value;
+            params.madhab = selectedMadhab === 'hanafi' ? adhan.Madhab.Hanafi : adhan.Madhab.Shafi;
+
+            const prayerTimes = new adhan.PrayerTimes(coordinates, date, params);
+            const sunnahTimes = new adhan.SunnahTimes(prayerTimes);
+            
+            // Format times
+            const times = {
+                'Fajr': formatTime(prayerTimes.fajr),
+                'Sunrise': formatTime(prayerTimes.sunrise),
+                'Dhuhr': formatTime(prayerTimes.dhuhr),
+                'Asr': formatTime(prayerTimes.asr),
+                'Maghrib': formatTime(prayerTimes.maghrib),
+                'Isha': formatTime(prayerTimes.isha)
+            };
+
+            // Add Isha end time based on selection
+            const ishaMethod = document.getElementById('ishaMethod').value;
+            if (ishaMethod === 'midnight') {
+                times['Isha End (Midnight)'] = formatTime(sunnahTimes.middleOfTheNight);
+            } else {
+                times['Isha End (Last Third)'] = formatTime(sunnahTimes.lastThirdOfTheNight);
+            }
+
+            displayPrayerTimes(times, prayerTimes.currentPrayer());
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function displayPrayerTimes(times, currentPrayer) {
+            const prayerTimesDiv = document.getElementById('prayerTimes');
+            prayerTimesDiv.innerHTML = `
+                <h2 class="h4 mb-3">Prayer Times</h2>
+                <div class="list-group">
+                    ${Object.entries(times).map(([prayer, time]) => `
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center
+                            ${prayer.toLowerCase() === currentPrayer.toLowerCase() ? 'list-group-item-success' : ''}">
+                            <span>${prayer}</span>
+                            <span class="badge badge-primary badge-pill">${time}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add event listeners for settings changes
+            document.getElementById('madhab').addEventListener('change', calculatePrayerTimes);
+            document.getElementById('ishaMethod').addEventListener('change', calculatePrayerTimes);
+            document.getElementById('calculation').addEventListener('change', calculatePrayerTimes);
+            
+            // Initialize with user's location
+            getLocation();
+        });
+    </script>
+</body>
+</html>
