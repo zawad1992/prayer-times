@@ -33,16 +33,8 @@
                         <select id="ishaMethod" class="form-control">
                             <option value="lastThird">Last Third of Night</option>
                             <option value="midnight">Arabic Midnight</option>
-                            <option value="fixed90">90 Minutes After Maghrib</option>
-                            <option value="fixed120">2 Hours After Maghrib</option>
-                            <option value="custom">Custom Minutes After Maghrib</option>
+                            <option value="beforefazr">Before Fazr</option>
                         </select>
-                    </div>
-
-                    <!-- Custom minutes input for Isha -->
-                    <div id="customIshaMinutes" class="form-group" style="display: none;">
-                        <label for="ishaCustomMinutes">Minutes After Maghrib:</label>
-                        <input type="number" id="ishaCustomMinutes" class="form-control" value="90" min="30" max="180" />
                     </div>
 
                     <div class="form-group">
@@ -108,7 +100,8 @@
     <script>
         let userLocation = {
             latitude: 0,
-            longitude: 0
+            longitude: 0,
+            altitude: 29 // Default height from your Android app
         };
 
         // Set default date to today
@@ -149,14 +142,25 @@
             params.adjustments = {
                 fajr: parseInt(document.getElementById('adjustFajr').value) || 0,
                 sunrise: parseInt(document.getElementById('adjustSunrise').value) || 0,
-                dhuhr: parseInt(document.getElementById('adjustDhuhr').value) || 0,
+                dhuhr: parseInt(document.getElementById('adjustDhuhr').value) || 1,
                 asr: parseInt(document.getElementById('adjustAsr').value) || 0,
                 maghrib: parseInt(document.getElementById('adjustMaghrib').value) || 0,
                 isha: parseInt(document.getElementById('adjustIsha').value) || 0
             };
 
+            // Account for altitude
+            if (userLocation.altitude) {
+                // Adjust calculations based on height
+                // You'll need to implement the specific altitude adjustment formula
+                // used by your Android app
+            }
+
+            const tzOffset = date.getTimezoneOffset() / 60;
+            params.timezone = -tzOffset;
+
             const prayerTimes = new adhan.PrayerTimes(coordinates, date, params);
             const sunnahTimes = new adhan.SunnahTimes(prayerTimes);
+
             
             // Calculate end times (next prayer start time)
             const tomorrowDate = new Date(date);
@@ -198,16 +202,10 @@
                 case 'midnight':
                     ishaEndTime = sunnahTimes.middleOfTheNight;
                     break;
-                case 'fixed90':
-                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + 90 * 60000);
+                case 'beforefazr':
+                    ishaEndTime = new Date(prayerTimes.fajr.getTime() - 1000); // 1000 milliseconds = 1 second
                     break;
-                case 'fixed120':
-                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + 120 * 60000);
-                    break;
-                case 'custom':
-                    const customMinutes = parseInt(document.getElementById('ishaCustomMinutes').value) || 90;
-                    ishaEndTime = new Date(prayerTimes.maghrib.getTime() + customMinutes * 60000);
-                    break;
+      
             }
 
             times['Isha'] = {
@@ -250,12 +248,6 @@
                 </div>
             `;
         }
-
-        // Show/hide custom minutes input based on selection
-        document.getElementById('ishaMethod').addEventListener('change', function(e) {
-            const customDiv = document.getElementById('customIshaMinutes');
-            customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        });
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
